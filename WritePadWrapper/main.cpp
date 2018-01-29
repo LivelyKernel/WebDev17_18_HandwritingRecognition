@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iostream>
 #include <string.h>
+#include <ctime>
 
 #include "include/json/json.h"
 
