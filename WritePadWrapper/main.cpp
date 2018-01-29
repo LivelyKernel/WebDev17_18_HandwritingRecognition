@@ -56,8 +56,6 @@ LANGUAGE determineLanguageToUse(const Json::Value &language) {
 BOOL enableRecognizer(LANGUAGE language) {
   const char *mainDictEN = "./English.dct";
   const char *mainDictDE = "./German.dct";
-  int englishLanguage = 0;
-  int germanLanguage = 1;
 
   std::cout << "Initialize recognizer..." << std::endl;
   int flags = 0;
@@ -72,13 +70,16 @@ BOOL enableRecognizer(LANGUAGE language) {
   }
 
   if (NULL != _recognizer) {
+    unsigned int update_flags = HWR_GetRecognitionFlags(_recognizer);
     if ((flags & FLAG_CORRECTOR) == 0) printf("Warning: autocorrector did not initialize.\n");
     if ((flags & FLAG_ANALYZER) == 0) printf("Warning: statistical analyzer did not initialize.\n");
     if ((flags & FLAG_USERDICT) == 0) printf("Warning: user dictionary did not initialize.\n");
     if ((flags & FLAG_MAINDICT) == 0) printf("Warning: main dictionary did not initialize.\n");
 
-    flags = HWR_GetRecognitionFlags(_recognizer);
-    HWR_SetRecognitionFlags(_recognizer, flags);
+//    update_flags |= FLAG_SINGLEWORDONLY;
+     update_flags &= ~FLAG_SINGLEWORDONLY;
+
+    HWR_SetRecognitionFlags(_recognizer, update_flags);
     printf("%s recognizer is enabled.\n", HWR_GetLanguageName(_recognizer));
 
   }
@@ -134,7 +135,10 @@ recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], s
   const UCHR *pText = NULL;
   HWR_RecognizerAddStroke(_recognizer, aStrokes, length);
 
+  clock_t beginRecognize = std::clock();
   if (HWR_Recognize(_recognizer)) {
+    clock_t endRecognize = std::clock();
+    std::cout << "Time recognizing: " << double(endRecognize - beginRecognize) << std::endl;
     pText = HWR_GetResult(_recognizer);
     std::cout << "Plain: " << *pText << std::endl;
     if (pText == NULL || *pText == 0) {
@@ -185,7 +189,7 @@ recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], s
   return std::vector<wchar_t *>();
 }
 
-const wchar_t *recognizeInkStringWrapper(const char *jsonString) {
+const wchar_t *recognizeSingleSuggestion(const char *jsonString) {
   try {
     std::string converted(jsonString);
 
@@ -213,7 +217,7 @@ const wchar_t *recognizeInkStringWrapper(const char *jsonString) {
   }
 }
 
-const wchar_t *recognizeInkAlternativesWrapper(const char *jsonString) {
+const wchar_t *recognizeMultipleSuggestions(const char *jsonString) {
   try {
     std::string converted(jsonString);
 
