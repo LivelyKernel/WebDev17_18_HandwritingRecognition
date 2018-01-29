@@ -34,14 +34,14 @@ def handle_handwriting_recognition_request():
         json_string = str(json_points).replace('\'', '\"')
         converted_for_cpp = ctypes.c_char_p(json_string.encode())
 
-        # lib.recognizeInkStringWrapper.restype = ctypes.c_wchar_p
-        # lib.recognizeInkStringWrapper.argtypes = [ctypes.c_char_p]
+        # lib.recognizeSingleSuggestion.restype = ctypes.c_wchar_p
+        # lib.recognizeSingleSuggestion.argtypes = [ctypes.c_char_p]
 
-        lib.recognizeInkAlternativesWrapper.restype = ctypes.c_wchar_p
-        lib.recognizeInkAlternativesWrapper.argtypes = [ctypes.c_char_p]
+        lib.recognizeMultipleSuggestions.restype = ctypes.c_wchar_p
+        lib.recognizeMultipleSuggestions.argtypes = [ctypes.c_char_p]
 
-        # _result = lib.recognizeInkStringWrapper(converted_for_cpp)
-        _result = lib.recognizeInkAlternativesWrapper(converted_for_cpp)
+        # _result = lib.recognizeSingleSuggestion(converted_for_cpp)
+        _result = lib.recognizeMultipleSuggestions(converted_for_cpp)
 
         result = str(_result)
         print("Python Result: " + result)
