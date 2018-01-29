@@ -14,6 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import ctypes
+import time
 
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
@@ -40,8 +41,11 @@ def handle_handwriting_recognition_request():
         lib.recognizeMultipleSuggestions.restype = ctypes.c_wchar_p
         lib.recognizeMultipleSuggestions.argtypes = [ctypes.c_char_p]
 
+        begin_ms = int(round(time.time() * 1000))
         # _result = lib.recognizeSingleSuggestion(converted_for_cpp)
         _result = lib.recognizeMultipleSuggestions(converted_for_cpp)
+        end_ms = int(round(time.time() * 1000))
+        print("Complete duration: " + str(int(end_ms - begin_ms)))
 
         result = str(_result)
         print("Python Result: " + result)
