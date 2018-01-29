@@ -139,7 +139,7 @@ recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], s
   clock_t beginRecognize = std::clock();
   if (HWR_Recognize(_recognizer)) {
     clock_t endRecognize = std::clock();
-    std::cout << "Time recognizing: " << double(endRecognize - beginRecognize) << std::endl;
+    std::cout << "Time recognizing: " << std::chrono::duration<double, std::milli>(endRecognize-beginRecognize).count() << " ms\n";
     pText = HWR_GetResult(_recognizer);
     std::cout << "Plain: " << *pText << std::endl;
     if (pText == NULL || *pText == 0) {
