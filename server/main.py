@@ -20,7 +20,7 @@ from flask_cors import CORS, cross_origin
 
 app = Flask(__name__)
 
-lib = ctypes.cdll.LoadLibrary('libWritePadLibrary.so')
+lib = ctypes.cdll.LoadLibrary('libWritePadWrapper.so')
 
 cors = CORS(app, resources={"/": {"origins": "*"}})
 app.config['CORS_HEADERS'] = 'Content-Type'
