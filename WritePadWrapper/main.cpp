@@ -137,9 +137,9 @@ recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], s
   const UCHR *pText = NULL;
   HWR_RecognizerAddStroke(_recognizer, aStrokes, length);
 
-  clock_t beginRecognize = std::clock();
+  auto beginRecognize = std::chrono::high_resolution_clock::now();;
   if (HWR_Recognize(_recognizer)) {
-    clock_t endRecognize = std::clock();
+    auto endRecognize = std::chrono::high_resolution_clock::now();;
     std::cout << "Time recognizing: " << std::chrono::duration<double, std::milli>(endRecognize-beginRecognize).count() << " ms\n";
     pText = HWR_GetResult(_recognizer);
     std::cout << "Plain: " << *pText << std::endl;
@@ -195,7 +195,7 @@ const wchar_t *recognizeSingleSuggestion(const char *jsonString) {
   try {
     std::string converted(jsonString);
 
-    std::cout << "Converted: " << converted << std::endl;
+//    std::cout << "Converted: " << converted << std::endl;
 
     Json::Value jsonInput;
     std::istringstream iss(converted, std::istringstream::in);
@@ -223,7 +223,7 @@ const wchar_t *recognizeMultipleSuggestions(const char *jsonString) {
   try {
     std::string converted(jsonString);
 
-    std::cout << "Converted: " << converted << std::endl;
+//    std::cout << "Converted: " << converted << std::endl;
 
     Json::Value jsonInput;
     std::istringstream iss(converted, std::istringstream::in);
