@@ -15,12 +15,11 @@
 * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ************************************************************************/
 
-#include <sstream>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <sstream>
 #include <string.h>
-#include <ctime>
-#include <chrono>
 
 #include "include/json/json.h"
 
@@ -40,7 +39,6 @@ extern "C" {
 #include "include/RecognizerWrapper.h"
 
 RECOGNIZER_PTR _recognizer;
-INK_DATA_PTR inkData;
 
 enum LANGUAGE {
     GERMAN, ENGLISCH
@@ -78,12 +76,12 @@ BOOL enableRecognizer(LANGUAGE language) {
     if ((flags & FLAG_USERDICT) == 0) printf("Warning: user dictionary did not initialize.\n");
     if ((flags & FLAG_MAINDICT) == 0) printf("Warning: main dictionary did not initialize.\n");
 
-//    update_flags |= FLAG_SINGLEWORDONLY;
-     update_flags &= ~FLAG_SINGLEWORDONLY;
+    // here, detecting multiple words at a time can be enabled - however, it does not seem to work yet
+    //    update_flags |= FLAG_SINGLEWORDONLY;
+    update_flags &= ~FLAG_SINGLEWORDONLY;
 
     HWR_SetRecognitionFlags(_recognizer, update_flags);
     printf("%s recognizer is enabled.\n", HWR_GetLanguageName(_recognizer));
-
   }
   return (NULL != _recognizer) ? TRUE : FALSE;
 }
@@ -91,6 +89,50 @@ BOOL enableRecognizer(LANGUAGE language) {
 static const CGTracePoint createTracePoint(double x, double y, int pressure) {
   const CGPoint t1 = {static_cast<CGFloat>(x), static_cast<CGFloat>(y)};
   return {t1, pressure};
+}
+
+Json::Value parseJson(const char *jsonString) {
+  std::string converted(jsonString);
+
+  Json::Value jsonInput;
+  std::istringstream iss(converted, std::istringstream::in);
+  iss >> jsonInput;
+  return jsonInput;
+}
+
+void extractPointsFromJson(const Json::Value &points, CGTracePoint *tracePoints) {
+  for (int i = 0; i < points.size(); ++i) {
+    Json::Value point = points[i];
+    tracePoints[i] = createTracePoint(point["x"].asUInt64(), point["y"].asUInt64(), 150);
+  }
+}
+
+Json::Value createJsonFromResults(const std::vector<wchar_t *> &result) {
+  Json::Value resultList;
+  for (int i = 0; i < result.size(); ++i) {
+    std::wstring ws(result[i]);
+    std::string str(ws.begin(), ws.end());
+    resultList["suggestions"][i] = Json::Value(str);
+  }
+  return resultList;
+}
+
+std::wstring convertJsonToWString(const Json::Value &resultList) {
+  Json::StreamWriterBuilder builder;
+  builder.settings_["indentation"] = "";
+  std::string out = writeString(builder, resultList);
+  std::wstring converted_result(out.begin(), out.end());
+  return converted_result;
+}
+
+void checkValidResult(const UCHR *pText) {
+  if (pText == NULL || *pText == 0) {
+    throw std::runtime_error("Got no result!");
+  }
+  std::string result = std::to_string(*pText);
+  if (strcmp(result.c_str(), kEmptyWord) == 0) {
+    throw std::runtime_error("Got no result!");
+  }
 }
 
 const wchar_t *recognizeInk(LANGUAGE languageToUse, CGTracePoint tracePoints[], size_t length) {
@@ -102,24 +144,15 @@ const wchar_t *recognizeInk(LANGUAGE languageToUse, CGTracePoint tracePoints[], 
 
   if (HWR_Recognize(_recognizer)) {
     pText = HWR_GetResult(_recognizer);
-    std::cout << "Plain: " << *pText << std::endl;
-    if (pText == NULL || *pText == 0) {
-      throw std::runtime_error("Got no result!");
-    }
-    std::string result = std::to_string(*pText);
-    if (strcmp(result.c_str(), kEmptyWord) == 0) {
-      throw std::runtime_error("Got no result!");
-    }
+    checkValidResult(pText);
 
-    // get length of recognized text
     int pTextLength = 0;
-    for (pTextLength = 0; pTextLength < 20000 && pText[pTextLength] != 0; pTextLength++);
+    for (; pTextLength < std::numeric_limits<int>::max() && pText[pTextLength] != 0; pTextLength++);
 
-    std::wstring fullWText = L"";
+    std::wstring fullWText;
     for (int i = 0; i < pTextLength; ++i) {
       fullWText += wchar_t(pText[i]);
     }
-
     std::wcout << "Result: " << fullWText << std::endl;
 
     wchar_t *real_result = new wchar_t[fullWText.length() + 1];
@@ -129,63 +162,36 @@ const wchar_t *recognizeInk(LANGUAGE languageToUse, CGTracePoint tracePoints[], 
   return nullptr;
 }
 
-const std::vector<wchar_t *>
-recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], size_t length) {
+const std::vector<wchar_t *> recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], size_t length) {
   enableRecognizer(languageToUse);
 
   CGStroke aStrokes = tracePoints;
-  const UCHR *pText = NULL;
   HWR_RecognizerAddStroke(_recognizer, aStrokes, length);
 
-  auto beginRecognize = std::chrono::high_resolution_clock::now();;
   if (HWR_Recognize(_recognizer)) {
-    auto endRecognize = std::chrono::high_resolution_clock::now();;
-    std::cout << "Time recognizing: " << std::chrono::duration<double, std::milli>(endRecognize-beginRecognize).count() << " ms\n";
-    pText = HWR_GetResult(_recognizer);
-    std::cout << "Plain: " << *pText << std::endl;
-    if (pText == NULL || *pText == 0) {
-      throw std::runtime_error("Got no result!");
-    }
-    std::string result = std::to_string(*pText);
-    if (strcmp(result.c_str(), kEmptyWord) == 0) {
-      throw std::runtime_error("Got no result!");
-    }
-
-    // get length of recognized text
-    int pTextLength = 0;
-    for (pTextLength = 0; pTextLength < 20000 && pText[pTextLength] != 0; pTextLength++);
-
     int wordCount = HWR_GetResultWordCount(_recognizer);
     std::cout << "Word Count: " << wordCount << std::endl;
-
     std::vector<wchar_t *> suggestions;
 
     for (int i = 0; i < wordCount; i++) {
-
       int alternativesCount = HWR_GetResultAlternativeCount(_recognizer, i);
-
       std::cout << "Alternatives count: " << alternativesCount << std::endl;
-
       for (int j = 0; j < alternativesCount; j++) {
         const UCHR *chrWord = HWR_GetResultWord(_recognizer, i, j);
-        BOOL isInDict = HWR_IsWordInDict(_recognizer, chrWord);
-        bool isReallyInDict = isInDict;
+        int pTextLength = 0;
+        for (; pTextLength < std::numeric_limits<int>::max() && chrWord[pTextLength] != 0; pTextLength++);
 
-        std::wstring fullWTextAlternative = L"";
-        for (int i = 0; i < pTextLength; ++i) {
-          fullWTextAlternative += wchar_t(chrWord[i]);
+        std::wstring alternative;
+        for (int k = 0; k < pTextLength; ++k) {
+          alternative += wchar_t(chrWord[k]);
         }
-        std::wcout << "Alternative: " << fullWTextAlternative << std::endl;
+        std::wcout << "Alternative: " << alternative << std::endl;
 
-        wchar_t *real_result = new wchar_t[fullWTextAlternative.length() + 1];
-        wcscpy(real_result, fullWTextAlternative.c_str());
-
+        wchar_t *real_result = new wchar_t[alternative.length() + 1];
+        wcscpy(real_result, alternative.c_str());
         suggestions.push_back(real_result);
-//        std::cout << "Is in dict? " << isReallyInDict << std::endl;
-
       }
     }
-
     return suggestions;
   }
   return std::vector<wchar_t *>();
@@ -193,24 +199,13 @@ recognizeInkSuggestionList(LANGUAGE languageToUse, CGTracePoint tracePoints[], s
 
 const wchar_t *recognizeSingleSuggestion(const char *jsonString) {
   try {
-    std::string converted(jsonString);
-
-//    std::cout << "Converted: " << converted << std::endl;
-
-    Json::Value jsonInput;
-    std::istringstream iss(converted, std::istringstream::in);
-    iss >> jsonInput;
-
+    Json::Value jsonInput = parseJson(jsonString);
     Json::Value points = jsonInput["points"];
     Json::Value language = jsonInput["language"];
-
     LANGUAGE languageToUse = determineLanguageToUse(language);
-
     CGTracePoint tracePoints[points.size()];
-    for (int i = 0; i < points.size(); ++i) {
-      Json::Value point = points[i];
-      tracePoints[i] = createTracePoint(point["x"].asUInt64(), point["y"].asUInt64(), 150);
-    }
+    extractPointsFromJson(points, tracePoints);
+
     return recognizeInk(languageToUse, tracePoints, sizeof(tracePoints) / sizeof(tracePoints[0]));
   } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;
@@ -221,46 +216,22 @@ const wchar_t *recognizeSingleSuggestion(const char *jsonString) {
 
 const wchar_t *recognizeMultipleSuggestions(const char *jsonString) {
   try {
-    std::string converted(jsonString);
-
-//    std::cout << "Converted: " << converted << std::endl;
-
-    Json::Value jsonInput;
-    std::istringstream iss(converted, std::istringstream::in);
-    iss >> jsonInput;
-
+    Json::Value jsonInput = parseJson(jsonString);
     Json::Value points = jsonInput["points"];
     Json::Value language = jsonInput["language"];
-
     LANGUAGE languageToUse = determineLanguageToUse(language);
-
     CGTracePoint tracePoints[points.size()];
-    for (int i = 0; i < points.size(); ++i) {
-      Json::Value point = points[i];
-      tracePoints[i] = createTracePoint(point["x"].asUInt64(), point["y"].asUInt64(), 150);
-    }
-    std::vector<wchar_t *> result = recognizeInkSuggestionList(languageToUse, tracePoints,
-                                                               sizeof(tracePoints) / sizeof(tracePoints[0]));
+    extractPointsFromJson(points, tracePoints);
 
-    Json::Value resultList;
-    int i = 0;
-    for (wchar_t *suggestion : result) {
-      std::wstring ws(suggestion);
-      std::string str(ws.begin(), ws.end());
-      resultList["suggestions"][i] = Json::Value(str);
-      ++i;
-    }
+    std::vector<wchar_t *> result = recognizeInkSuggestionList(languageToUse, tracePoints, sizeof(tracePoints) / sizeof(tracePoints[0]));
 
-    Json::StreamWriterBuilder builder;
-    builder.settings_["indentation"] = "";
-    std::string out = Json::writeString(builder, resultList);
-    std::wstring converted_result(out.begin(), out.end());
+    Json::Value resultList = createJsonFromResults(result);
+    std::wstring converted_result = convertJsonToWString(resultList);
 
+    // Putting the result to heap is required to access from python server
     wchar_t *real_result = new wchar_t[converted_result.length() + 1];
     wcscpy(real_result, converted_result.c_str());
-
-    std::wcout << "Final result: " << real_result << std::endl;
-
+    std::wcout << "Return result: " << real_result << std::endl;
     return real_result;
   } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;
@@ -268,5 +239,4 @@ const wchar_t *recognizeMultipleSuggestions(const char *jsonString) {
     return error.c_str();
   }
 }
-
 }
