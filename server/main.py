@@ -14,17 +14,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import ctypes
-import time
+import json
 
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
 
 app = Flask(__name__)
-
 lib = ctypes.cdll.LoadLibrary('libWritePadWrapper.so')
 
+# config
 cors = CORS(app, resources={"/": {"origins": "*"}})
 app.config['CORS_HEADERS'] = 'Content-Type'
+ENABLE_MULTIPLE_SUGGESTIONS = True
 
 
 @app.route('/', methods=['POST'])
@@ -35,23 +36,17 @@ def handle_handwriting_recognition_request():
         json_string = str(json_points).replace('\'', '\"')
         converted_for_cpp = ctypes.c_char_p(json_string.encode())
 
-        # lib.recognizeSingleSuggestion.restype = ctypes.c_wchar_p
-        # lib.recognizeSingleSuggestion.argtypes = [ctypes.c_char_p]
-
-        lib.recognizeMultipleSuggestions.restype = ctypes.c_wchar_p
-        lib.recognizeMultipleSuggestions.argtypes = [ctypes.c_char_p]
-
-        begin_ms = int(round(time.time() * 1000))
-        # _result = lib.recognizeSingleSuggestion(converted_for_cpp)
-        _result = lib.recognizeMultipleSuggestions(converted_for_cpp)
-        end_ms = int(round(time.time() * 1000))
-        print("Complete duration: " + str(int(end_ms - begin_ms)))
-
-        result = str(_result)
-        print("Python Result: " + result)
-
-        # currently not necessary, because the library already returns a valid json
-        # result = json.dumps(result)
+        if ENABLE_MULTIPLE_SUGGESTIONS:
+            lib.recognizeMultipleSuggestions.restype = ctypes.c_wchar_p
+            lib.recognizeMultipleSuggestions.argtypes = [ctypes.c_char_p]
+            _result = lib.recognizeMultipleSuggestions(converted_for_cpp)
+            result = str(_result)
+        else:
+            lib.recognizeSingleSuggestion.restype = ctypes.c_wchar_p
+            lib.recognizeSingleSuggestion.argtypes = [ctypes.c_char_p]
+            _result = lib.recognizeSingleSuggestion(converted_for_cpp)
+            result = str(_result)
+            result = json.dumps(result)
 
         response = app.response_class(
             response=result,
