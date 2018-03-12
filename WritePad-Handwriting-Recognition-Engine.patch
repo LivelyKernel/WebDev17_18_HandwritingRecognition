@@ -1,0 +1,13 @@
+diff --git a/Linux/makefile b/Linux/makefile
+index 9afc1a1..7024867 100755
+--- a/Linux/makefile
++++ b/Linux/makefile
+@@ -31,7 +31,7 @@ RM := rm -rf
+ CPP := g++
+ 
+ # Compiler flags
+-CFLAGS := -std=gnu++11 -O3 -Wall -c 
++CFLAGS := -std=gnu++11 -O3 -Wall -c -fPIC -shared
+ 
+ WARNIGNS := -Wno-char-subscripts \
+ 	    -Wno-missing-braces \

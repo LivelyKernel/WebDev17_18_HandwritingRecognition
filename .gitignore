@@ -1,0 +1,8 @@
+
+jsoncpp
+WritePad-Handwriting-Recognition-Engine/
+WritePadWrapper/build
+WritePadWrapper/lib
+WritePadWrapper/include
+server/English.dct
+server/German.dct
